@@ -51,11 +51,13 @@ namespace CodeUMLParser
 				SyntaxTree tree = CSharpSyntaxTree.ParseText(text);
 				CompilationUnitSyntax root = tree.GetCompilationUnitRoot();
 
+				// Visit 邏輯
 				var clzzCollector = new ClassCollector();
 				clzzCollector.Visit(root);
 				
 				// show(clzzCollector, path);
 
+				// 依類別顯示
 				foreach (var clzzName in clzzCollector.ClassList)
 				{
 					if (clzzName.StartsWith("I"))
@@ -66,31 +68,37 @@ namespace CodeUMLParser
 					{
 						Console.WriteLine($"class {clzzName}");
 					}
+					var ignore = new List<string> {"int", "string", "Func", "BaseController", "Controller"};
+					if(ignore.Any(ptn => clzzName.StartsWith(ptn)))
+						continue;
 					
+					// 繼承 部分
 					var baseList = clzzCollector.BaseList[clzzName];
 					Console.ForegroundColor = ConsoleColor.Blue;
 					if (baseList != null)
 					{
-						var types = baseList.Types;
-						var baselist = types.Select(t => t.GetText().ToString().Trim());
-						foreach (var _base in baselist)
+						foreach (var _base in baseList)
 						{
-							if(_base.StartsWith("I"))
-								Console.WriteLine($"{_base} <|.. {clzzName}");
-							else
-								Console.WriteLine($"{_base} <|-- {clzzName}");
+							if(!ignore.Any(ptn => _base.StartsWith(ptn)))
+							{
+								if(_base.StartsWith("I"))
+									Console.WriteLine($"{_base} <|.. {clzzName}");
+								else
+									Console.WriteLine($"{_base} <|-- {clzzName}");
+							}
 						}
 					}
 
+					// Use 部分
 					var properties = clzzCollector.Property[clzzName];
 					Console.ForegroundColor = ConsoleColor.Magenta;
 					if (properties.Count > 0)
 					{
 						foreach (var property in properties)
 						{
-							var ignore = new List<string> {"int", "string", "Func"};
-							if(!ignore.Any(ptn => property.Type.ToString().StartsWith(ptn)))
-								Console.WriteLine($"{clzzName} --> {property.Type}: Use");
+							var propertyType = property.Type;
+							if(!ignore.Any(ptn => propertyType.ToString().StartsWith(ptn)) )
+								Console.WriteLine($"{clzzName} --> {propertyType}: Use");
 						}
 					}
 					Console.ForegroundColor = ConsoleColor.Black;
@@ -113,9 +121,7 @@ namespace CodeUMLParser
 		        Console.ForegroundColor = ConsoleColor.Blue;
 		        if (baseList != null)
 		        {
-			        var types = baseList.Types;
-			        var enumerable = types.Select(t => t.GetText().ToString().Trim());
-			        Console.WriteLine("繼承: " + string.Join(",", enumerable));
+			        Console.WriteLine("繼承: " + string.Join(",", baseList));
 		        }
 		        else
 		        {
@@ -145,14 +151,15 @@ namespace CodeUMLParser
 		private string ClassName { set; get; }
 
 		public List<string> ClassList { get; } = new();
-		public Dictionary<string, BaseListSyntax> BaseList { get; } = new ();
+		public Dictionary<string, ICollection<string>> BaseList { get; } = new ();
 		public Dictionary<string, ICollection<PropertyDeclarationSyntax>> Property { get; } = new ();
 
 		public override void VisitClassDeclaration(ClassDeclarationSyntax node)
 		{
 			this.ClassName = node.Identifier.Text;
 			this.ClassList.Add(this.ClassName);
-			this.BaseList.Add(this.ClassName, node.BaseList);
+			// this.BaseList.Add(this.ClassName, node.BaseList);
+			this.BaseList.Add(this.ClassName, node.BaseList?.Types.ToList().Select(t => t.GetText().ToString()).ToList());
 			if (!this.Property.ContainsKey(this.ClassName))
 			{
 				this.Property[this.ClassName] = new List<PropertyDeclarationSyntax>();
@@ -163,7 +170,8 @@ namespace CodeUMLParser
 		{
 			this.ClassName = node.Identifier.Text;
 			this.ClassList.Add(this.ClassName);
-			this.BaseList.Add(this.ClassName, node.BaseList);
+			// this.BaseList.Add(this.ClassName, node.BaseList);
+			this.BaseList.Add(this.ClassName, node.BaseList?.Types.ToList().Select(t => t.GetText().ToString()).ToList());
 			if (!this.Property.ContainsKey(this.ClassName))
 			{
 				this.Property[this.ClassName] = new List<PropertyDeclarationSyntax>();
